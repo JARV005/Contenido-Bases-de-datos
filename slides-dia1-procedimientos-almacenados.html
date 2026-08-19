@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Día 1 — Procedimientos Almacenados | PostgreSQL</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0f111a;
+    --surface: #1a1d2e;
+    --border: #2a2d3e;
+    --text: #e2e8f0;
+    --muted: #8892b0;
+    --accent: #64ffda;
+    --accent2: #7c3aed;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --code-bg: #141622;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  .slide {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    padding: 60px 80px;
+    height: 100vh;
+    animation: fadeIn 0.4s ease;
+  }
+
+  .slide.active { display: flex; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .slide-number {
+    position: fixed;
+    bottom: 24px;
+    right: 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.4s ease;
+  }
+
+  .tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 4px 12px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-size: 3rem;
+    font-weight: 900;
+    line-height: 1.15;
+    margin-bottom: 16px;
+    max-width: 800px;
+  }
+
+  h1 .highlight { color: var(--accent); }
+
+  h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 24px;
+  }
+
+  h2 .highlight { color: var(--accent); }
+
+  .subtitle {
+    font-size: 1.25rem;
+    color: var(--muted);
+    max-width: 600px;
+    line-height: 1.6;
+  }
+
+  p { line-height: 1.7; margin-bottom: 12px; font-size: 1.1rem; }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin: 16px 0;
+    max-height: 55vh;
+  }
+
+  .keyword { color: var(--accent2); font-weight: 700; }
+  .function { color: #7dd3fc; }
+  .string { color: #fbbf24; }
+  .comment { color: #6b7280; font-style: italic; }
+  .type { color: #f472b6; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 16px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+  }
+
+  .card h3 {
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+    color: var(--accent);
+  }
+
+  .card ul { list-style: none; }
+  .card ul li {
+    padding: 6px 0;
+    padding-left: 20px;
+    position: relative;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .card ul li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+  }
+
+  .card.green { border-left: 3px solid var(--accent); }
+  .card.purple { border-left: 3px solid var(--accent2); }
+  .card.yellow { border-left: 3px solid var(--warning); }
+  .card.red { border-left: 3px solid var(--error); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-size: 0.95rem;
+  }
+
+  th {
+    text-align: left;
+    padding: 12px 16px;
+    background: var(--surface);
+    border-bottom: 2px solid var(--accent);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  .big-emoji { font-size: 3rem; margin-bottom: 16px; }
+
+  .list-clean li {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 1.05rem;
+  }
+
+  .list-clean li:last-child { border-bottom: none; }
+
+  .controls-hint {
+    position: fixed;
+    bottom: 24px;
+    left: 40px;
+    font-size: 13px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .controls-hint kbd {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .quote {
+    border-left: 3px solid var(--accent);
+    padding: 16px 24px;
+    margin: 16px 0;
+    background: var(--surface);
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+    color: var(--muted);
+    font-size: 1.1rem;
+  }
+
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 20px 0;
+  }
+
+  .flow-step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+  }
+
+  .flow-arrow { color: var(--accent); font-size: 1.2rem; }
+</style>
+</head>
+<body>
+
+<!-- Slide 1: Título -->
+<div class="slide active" id="s1">
+  <div class="tag">Semana 1 · Día 1</div>
+  <h1>Procedimientos <span class="highlight">Almacenados</span></h1>
+  <p class="subtitle">Encapsular lógica de negocio directamente en PostgreSQL para automatizar procesos y garantizar consistencia.</p>
+</div>
+
+<!-- Slide 2: Pregunta detonante -->
+<div class="slide" id="s2">
+  <div class="big-emoji">🤔</div>
+  <h2>Escenario</h2>
+  <div class="quote">Un cliente hace un pedido en tu tienda online. Necesitas: verificar stock, descontar inventario, registrar la venta y actualizar estadísticas.</div>
+  <p style="margin-top: 20px; font-size: 1.3rem; color: var(--warning);">¿Enviarías 4 queries separadas desde tu backend?</p>
+</div>
+
+<!-- Slide 3: Definición -->
+<div class="slide" id="s3">
+  <div class="tag">Concepto</div>
+  <h2>¿Qué es un <span class="highlight">Stored Procedure</span>?</h2>
+  <p>Un bloque de código SQL que se <strong style="color:var(--accent)">guarda en el servidor</strong>, se compila una vez y se puede ejecutar múltiples veces.</p>
+  <div class="flow">
+    <div class="flow-step">📝 CREATE PROCEDURE</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">💾 Se almacena en pg_proc</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">⚡ CALL para ejecutar</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">🔄 Reutilizable</div>
+  </div>
+  <p style="color: var(--muted); margin-top: 20px;">Disponible desde <strong>PostgreSQL 11</strong>. Antes de PG 11, solo existían funciones.</p>
+</div>
+
+<!-- Slide 4: ¿Cuándo usar? -->
+<div class="slide" id="s4">
+  <h2>¿Cuándo usar <span class="highlight">procedimientos</span> vs lógica en la app?</h2>
+  <div class="grid-2">
+    <div class="card green">
+      <h3>✅ Usar procedimiento</h3>
+      <ul>
+        <li>Lógica transaccional (varias tablas)</li>
+        <li>Consistencia independiente del cliente</li>
+        <li>Múltiples apps acceden a la misma BD</li>
+        <li>Reducir tráfico de red</li>
+      </ul>
+    </div>
+    <div class="card purple">
+      <h3>💻 Mantener en la app</h3>
+      <ul>
+        <li>Lógica que depende de APIs externas</li>
+        <li>Cambios frecuentes de reglas de negocio</li>
+        <li>Se necesita testing unitario granular</li>
+        <li>El equipo no domina SQL avanzado</li>
+      </ul>
+    </div>
+  </div>
+  <p style="margin-top: 20px; color: var(--warning); font-size: 0.95rem;">⚠️ La decisión siempre es contextual — no hay dogma aquí.</p>
+</div>
+
+<!-- Slide 5: Sintaxis base -->
+<div class="slide" id="s5">
+  <div class="tag">Sintaxis</div>
+  <h2>Estructura de un <span class="highlight">procedimiento</span></h2>
+  <pre><span class="keyword">CREATE OR REPLACE PROCEDURE</span> <span class="function">nombre_procedimiento</span>(
+    <span class="comment">-- parámetros aquí</span>
+)
+<span class="keyword">LANGUAGE</span> plpgsql
+<span class="keyword">AS</span> <span class="string">$$</span>
+<span class="keyword">DECLARE</span>
+    <span class="comment">-- variables locales</span>
+<span class="keyword">BEGIN</span>
+    <span class="comment">-- lógica SQL</span>
+<span class="keyword">END</span>;
+<span class="string">$$</span>;</pre>
+  <div class="grid-2" style="margin-top: 8px;">
+    <div style="font-size:0.9rem; color:var(--muted);"><code style="color:var(--accent)">LANGUAGE plpgsql</code> → lenguaje procedural de PostgreSQL</div>
+    <div style="font-size:0.9rem; color:var(--muted);"><code style="color:var(--accent)">$$ ... $$</code> → delimitadores del cuerpo (dollar quoting)</div>
+  </div>
+</div>
+
+<!-- Slide 6: Primer procedimiento -->
+<div class="slide" id="s6">
+  <div class="tag">Código en vivo</div>
+  <h2>Primer procedimiento: <span class="highlight">sin parámetros</span></h2>
+  <pre><span class="keyword">CREATE OR REPLACE PROCEDURE</span> <span class="function">aumentar_precios_10</span>()
+<span class="keyword">LANGUAGE</span> plpgsql
+<span class="keyword">AS</span> <span class="string">$$</span>
+<span class="keyword">BEGIN</span>
+    <span class="keyword">UPDATE</span> productos
+    <span class="keyword">SET</span> precio = precio * <span class="string">1.10</span>
+    <span class="keyword">WHERE</span> activo = <span class="string">TRUE</span>;
+
+    <span class="function">RAISE NOTICE</span> <span class="string">'Precios actualizados correctamente'</span>;
+<span class="keyword">END</span>;
+<span class="string">$$</span>;
+
+<span class="comment">-- Ejecutar</span>
+<span class="keyword">CALL</span> <span class="function">aumentar_precios_10</span>();</pre>
+</div>
+
+<!-- Slide 7: Parámetros IN -->
+<div class="slide" id="s7">
+  <div class="tag">Parámetros</div>
+  <h2>Parámetros <span class="highlight">IN</span></h2>
+  <pre><span class="keyword">CREATE OR REPLACE PROCEDURE</span> <span class="function">registrar_producto</span>(
+    <span class="type">p_nombre</span> <span class="type">VARCHAR</span>,
+    <span class="type">p_precio</span> <span class="type">DECIMAL</span>,
+    <span class="type">p_stock</span>  <span class="type">INT</span>
+)
+<span class="keyword">LANGUAGE</span> plpgsql
+<span class="keyword">AS</span> <span class="string">$$</span>
+<span class="keyword">BEGIN</span>
+    <span class="keyword">INSERT INTO</span> productos (nombre, precio, stock)
+    <span class="keyword">VALUES</span> (p_nombre, p_precio, p_stock);
+
+    <span class="function">RAISE NOTICE</span> <span class="string">'Producto "%" registrado'</span>, p_nombre;
+<span class="keyword">END</span>;
+<span class="string">$$</span>;
+
+<span class="comment">-- Uso</span>
+<span class="keyword">CALL</span> <span class="function">registrar_producto</span>(<span class="string">'Webcam HD'</span>, <span class="string">180000</span>, <span class="string">20</span>);</pre>
+  <p style="margin-top: 8px; color: var(--warning); font-size: 0.9rem;">💡 Convención: prefijo <code>p_</code> para parámetros, <code>v_</code> para variables locales</p>
+</div>
+
+<!-- Slide 8: Parámetros INOUT -->
+<div class="slide" id="s8">
+  <div class="tag">Parámetros</div>
+  <h2>Parámetros <span class="highlight">INOUT</span></h2>
+  <pre><span class="keyword">CREATE OR REPLACE PROCEDURE</span> <span class="function">calcular_total_inventario</span>(
+    <span class="keyword">INOUT</span> <span class="type">total_valor</span> <span class="type">DECIMAL</span> <span class="keyword">DEFAULT</span> <span class="string">0</span>
+)
+<span class="keyword">LANGUAGE</span> plpgsql
+<span class="keyword">AS</span> <span class="string">$$</span>
+<span class="keyword">BEGIN</span>
+    <span class="keyword">SELECT</span> <span class="function">SUM</span>(precio * stock) <span class="keyword">INTO</span> total_valor
+    <span class="keyword">FROM</span> productos
+    <span class="keyword">WHERE</span> activo = <span class="string">TRUE</span>;
+<span class="keyword">END</span>;
+<span class="string">$$</span>;
+
+<span class="comment">-- Devuelve el valor calculado</span>
+<span class="keyword">CALL</span> <span class="function">calcular_total_inventario</span>();</pre>
+  <div class="card yellow" style="margin-top: 16px;">
+    <h3>⚠️ Importante</h3>
+    <ul>
+      <li>Los procedimientos NO tienen RETURN como las funciones</li>
+      <li>INOUT es la forma de "devolver" datos desde un procedimiento</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Slide 9: Caso empresarial -->
+<div class="slide" id="s9">
+  <div class="tag">Caso práctico</div>
+  <h2>Caso: <span class="highlight">Procesar una venta</span></h2>
+  <div class="quote">Somos el equipo de backend de una tienda de tecnología. Necesitamos un procedimiento que procese una venta completa.</div>
+  <div class="flow" style="margin-top: 24px;">
+    <div class="flow-step">1. Recibir producto y cantidad</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">2. Verificar stock</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">3. Descontar inventario</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">4. Registrar venta</div>
+  </div>
+</div>
+
+<!-- Slide 10: Solución completa -->
+<div class="slide" id="s10">
+  <div class="tag">Solución</div>
+  <h2><span class="highlight">procesar_venta</span> — Completo</h2>
+  <pre><span class="keyword">CREATE OR REPLACE PROCEDURE</span> <span class="function">procesar_venta</span>(
+    <span class="type">p_producto_id</span> <span class="type">INT</span>, <span class="type">p_cantidad</span> <span class="type">INT</span>
+)
+<span class="keyword">LANGUAGE</span> plpgsql <span class="keyword">AS</span> <span class="string">$$</span>
+<span class="keyword">DECLARE</span>
+    v_stock <span class="type">INT</span>; v_precio <span class="type">DECIMAL</span>; v_total <span class="type">DECIMAL</span>;
+<span class="keyword">BEGIN</span>
+    <span class="keyword">SELECT</span> stock, precio <span class="keyword">INTO</span> v_stock, v_precio
+    <span class="keyword">FROM</span> productos <span class="keyword">WHERE</span> id = p_producto_id <span class="keyword">AND</span> activo = <span class="string">TRUE</span>;
+
+    <span class="keyword">IF NOT FOUND THEN</span>
+        <span class="function">RAISE EXCEPTION</span> <span class="string">'Producto % no encontrado'</span>, p_producto_id;
+    <span class="keyword">END IF</span>;
+
+    <span class="keyword">IF</span> v_stock < p_cantidad <span class="keyword">THEN</span>
+        <span class="function">RAISE EXCEPTION</span> <span class="string">'Stock insuficiente: % disponible'</span>, v_stock;
+    <span class="keyword">END IF</span>;
+
+    v_total := v_precio * p_cantidad;
+    <span class="keyword">UPDATE</span> productos <span class="keyword">SET</span> stock = stock - p_cantidad <span class="keyword">WHERE</span> id = p_producto_id;
+    <span class="keyword">INSERT INTO</span> ventas (producto_id, cantidad, total)
+    <span class="keyword">VALUES</span> (p_producto_id, p_cantidad, v_total);
+
+    <span class="function">RAISE NOTICE</span> <span class="string">'Venta: % uds por $%'</span>, p_cantidad, v_total;
+<span class="keyword">END</span>; <span class="string">$$</span>;</pre>
+</div>
+
+<!-- Slide 11: Probando -->
+<div class="slide" id="s11">
+  <div class="tag">Testing</div>
+  <h2>Probando el <span class="highlight">procedimiento</span></h2>
+  <pre><span class="comment">-- ✅ Venta exitosa</span>
+<span class="keyword">CALL</span> <span class="function">procesar_venta</span>(<span class="string">1</span>, <span class="string">2</span>);   <span class="comment">-- 2 laptops</span>
+
+<span class="comment">-- Verificar resultados</span>
+<span class="keyword">SELECT</span> * <span class="keyword">FROM</span> ventas;
+<span class="keyword">SELECT</span> nombre, stock <span class="keyword">FROM</span> productos <span class="keyword">WHERE</span> id = <span class="string">1</span>;
+
+<span class="comment">-- ❌ Error: stock insuficiente</span>
+<span class="keyword">CALL</span> <span class="function">procesar_venta</span>(<span class="string">4</span>, <span class="string">50</span>);  <span class="comment">-- Solo hay 10 monitores</span>
+
+<span class="comment">-- ❌ Error: producto no existe</span>
+<span class="keyword">CALL</span> <span class="function">procesar_venta</span>(<span class="string">999</span>, <span class="string">1</span>);</pre>
+  <div class="grid-2" style="margin-top: 16px;">
+    <div class="card green">
+      <h3>Éxito esperado</h3>
+      <ul><li>Stock se reduce de 15 a 13</li><li>Nueva fila en tabla ventas</li></ul>
+    </div>
+    <div class="card red">
+      <h3>Error esperado</h3>
+      <ul><li>EXCEPTION detiene la ejecución</li><li>Ningún dato se modifica</li></ul>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 12: Herramientas clave -->
+<div class="slide" id="s12">
+  <div class="tag">Referencia</div>
+  <h2>Herramientas clave de <span class="highlight">PL/pgSQL</span></h2>
+  <table>
+    <thead>
+      <tr><th>Elemento</th><th>Uso</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code style="color:var(--accent)">DECLARE</code></td><td>Declarar variables locales</td></tr>
+      <tr><td><code style="color:var(--accent)">SELECT INTO</code></td><td>Capturar resultado en variable</td></tr>
+      <tr><td><code style="color:var(--accent)">FOUND</code></td><td>¿La última query retornó filas?</td></tr>
+      <tr><td><code style="color:var(--accent)">RAISE NOTICE</code></td><td>Mensaje informativo (como console.log)</td></tr>
+      <tr><td><code style="color:var(--accent)">RAISE EXCEPTION</code></td><td>Lanzar error y detener ejecución</td></tr>
+      <tr><td><code style="color:var(--accent)">GET DIAGNOSTICS</code></td><td>Obtener metadata (filas afectadas, etc.)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Slide 13: Ejercicios -->
+<div class="slide" id="s13">
+  <div class="tag">Práctica</div>
+  <h2>Ejercicios <span class="highlight">individuales</span></h2>
+  <div class="grid-2">
+    <div class="card green">
+      <h3>🟢 Básico</h3>
+      <ul><li>Crear <code>desactivar_producto(p_id)</code></li><li>Poner activo = FALSE</li><li>Error si no existe</li></ul>
+    </div>
+    <div class="card yellow">
+      <h3>🟡 Intermedio</h3>
+      <ul><li>Crear <code>aplicar_descuento(p_cat, p_%)</code></li><li>Descuento a productos de una categoría</li><li>Informar cuántos se afectaron</li></ul>
+    </div>
+  </div>
+  <div class="card purple" style="margin-top: 20px;">
+    <h3>🟣 Avanzado</h3>
+    <ul><li>Crear <code>transferir_stock(p_origen, p_destino, p_cantidad)</code></li><li>Mover stock entre productos validando existencia y disponibilidad</li></ul>
+  </div>
+</div>
+
+<!-- Slide 14: Cierre -->
+<div class="slide" id="s14">
+  <div class="tag">Cierre</div>
+  <h2>Recapitulación</h2>
+  <ul class="list-clean" style="max-width: 700px;">
+    <li>✅ Un procedimiento encapsula lógica SQL reutilizable en el motor</li>
+    <li>✅ Se ejecuta con <code style="color:var(--accent)">CALL</code></li>
+    <li>✅ Parámetros <code style="color:var(--accent)">IN</code> (entrada) e <code style="color:var(--accent)">INOUT</code> (entrada/salida)</li>
+    <li>✅ <code style="color:var(--accent)">RAISE</code> para mensajes y errores</li>
+    <li>✅ <code style="color:var(--accent)">DECLARE</code> + <code style="color:var(--accent)">SELECT INTO</code> para variables</li>
+  </ul>
+  <div class="card purple" style="margin-top: 32px; max-width: 700px;">
+    <h3>🔮 Mañana — Día 2</h3>
+    <ul>
+      <li>Variables y tipos de datos avanzados</li>
+      <li>Condicionales y ciclos</li>
+      <li>Manejo de errores (BEGIN...EXCEPTION)</li>
+      <li>Transacciones dentro de procedimientos</li>
+    </ul>
+  </div>
+</div>
+
+<div class="progress" id="progress"></div>
+<div class="slide-number" id="slideNum"></div>
+<div class="controls-hint"><kbd>←</kbd> <kbd>→</kbd> o clic para navegar</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+
+  function showSlide(n) {
+    slides[current].classList.remove('active');
+    current = (n + slides.length) % slides.length;
+    slides[current].classList.add('active');
+    document.getElementById('slideNum').textContent = `${current + 1} / ${slides.length}`;
+    document.getElementById('progress').style.width = `${((current + 1) / slides.length) * 100}%`;
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') showSlide(current + 1);
+    if (e.key === 'ArrowLeft') showSlide(current - 1);
+  });
+
+  document.addEventListener('click', e => {
+    if (e.clientX > window.innerWidth / 2) showSlide(current + 1);
+    else showSlide(current - 1);
+  });
+
+  showSlide(0);
+</script>
+</body>
+</html>
