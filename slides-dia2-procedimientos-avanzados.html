@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Día 2 — Procedimientos Avanzados | PostgreSQL</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--bg:#0f111a;--surface:#1a1d2e;--border:#2a2d3e;--text:#e2e8f0;--muted:#8892b0;--accent:#64ffda;--accent2:#7c3aed;--warning:#f59e0b;--error:#ef4444;--success:#22c55e;--code-bg:#141622}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow:hidden;height:100vh}
+  .slide{display:none;flex-direction:column;justify-content:center;padding:60px 80px;height:100vh;animation:fadeIn .4s ease}
+  .slide.active{display:flex}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  .slide-number{position:fixed;bottom:24px;right:40px;font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--muted)}
+  .progress{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s ease}
+  .tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent);border:1px solid var(--accent);padding:4px 12px;border-radius:4px;margin-bottom:20px;letter-spacing:1px;text-transform:uppercase}
+  h1{font-size:3rem;font-weight:900;line-height:1.15;margin-bottom:16px;max-width:800px}
+  h1 .highlight,h2 .highlight{color:var(--accent)}
+  h2{font-size:2rem;font-weight:700;margin-bottom:24px}
+  .subtitle{font-size:1.25rem;color:var(--muted);max-width:600px;line-height:1.6}
+  p{line-height:1.7;margin-bottom:12px;font-size:1.1rem}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:20px 24px;font-family:'JetBrains Mono',monospace;font-size:.82rem;line-height:1.65;overflow-x:auto;margin:16px 0;max-height:55vh}
+  .keyword{color:var(--accent2);font-weight:700}.function{color:#7dd3fc}.string{color:#fbbf24}.comment{color:#6b7280;font-style:italic}.type{color:#f472b6}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-top:16px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px}
+  .card h3{font-size:1rem;margin-bottom:10px;color:var(--accent)}
+  .card ul{list-style:none}.card ul li{padding:5px 0;padding-left:20px;position:relative;color:var(--muted);font-size:.9rem}
+  .card ul li::before{content:'→';position:absolute;left:0;color:var(--accent)}
+  .card.green{border-left:3px solid var(--success)}.card.purple{border-left:3px solid var(--accent2)}.card.yellow{border-left:3px solid var(--warning)}.card.red{border-left:3px solid var(--error)}
+  table{width:100%;border-collapse:collapse;margin-top:16px;font-size:.9rem}
+  th{text-align:left;padding:10px 14px;background:var(--surface);border-bottom:2px solid var(--accent);color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:.8rem;text-transform:uppercase;letter-spacing:1px}
+  td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--muted)}
+  .controls-hint{position:fixed;bottom:24px;left:40px;font-size:13px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  .controls-hint kbd{background:var(--surface);border:1px solid var(--border);padding:2px 8px;border-radius:4px;font-size:12px}
+  .quote{border-left:3px solid var(--accent);padding:16px 24px;margin:16px 0;background:var(--surface);border-radius:0 8px 8px 0;font-style:italic;color:var(--muted);font-size:1.1rem}
+  .flow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:20px 0}
+  .flow-step{background:var(--surface);border:1px solid var(--border);padding:12px 20px;border-radius:8px;font-size:.9rem}
+  .flow-arrow{color:var(--accent);font-size:1.2rem}
+  .big-emoji{font-size:3rem;margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<div class="slide active" id="s1">
+  <div class="tag">Semana 1 · Día 2</div>
+  <h1>Procedimientos <span class="highlight">Avanzados</span></h1>
+  <p class="subtitle">Variables, condicionales, ciclos, manejo de errores y transacciones en PL/pgSQL.</p>
+</div>
+
+<div class="slide" id="s2">
+  <div class="tag">Variables</div>
+  <h2>Declaración de <span class="highlight">variables</span></h2>
+  <pre><span class="keyword">DECLARE</span>
+    v_nombre    <span class="type">VARCHAR(100)</span> := <span class="string">'Sin nombre'</span>;    <span class="comment">-- valor inicial</span>
+    v_precio    <span class="type">DECIMAL(10,2)</span>;
+    v_cantidad  <span class="type">INT</span> <span class="keyword">DEFAULT</span> <span class="string">0</span>;
+    v_activo    <span class="type">BOOLEAN</span> := <span class="string">TRUE</span>;
+
+    <span class="comment">-- Tipo referenciado (copia el tipo de la columna)</span>
+    v_prod_nombre  productos.nombre<span class="keyword">%TYPE</span>;
+
+    <span class="comment">-- Fila completa</span>
+    v_producto     productos<span class="keyword">%ROWTYPE</span>;
+
+    <span class="comment">-- Constante</span>
+    C_IVA <span class="keyword">CONSTANT</span> <span class="type">DECIMAL</span> := <span class="string">0.19</span>;</pre>
+  <div class="grid-2" style="margin-top:8px">
+    <div style="font-size:.85rem;color:var(--muted)"><code style="color:var(--accent)">%TYPE</code> → si cambia la columna, tu código sigue funcionando</div>
+    <div style="font-size:.85rem;color:var(--muted)"><code style="color:var(--accent)">%ROWTYPE</code> → accede con <code>variable.columna</code></div>
+  </div>
+</div>
+
+<div class="slide" id="s3">
+  <div class="tag">Condicionales</div>
+  <h2><span class="highlight">IF</span> / ELSIF / ELSE</h2>
+  <pre><span class="keyword">IF</span> v_precio > <span class="string">1000000</span> <span class="keyword">THEN</span>
+    v_categoria := <span class="string">'PREMIUM'</span>;
+<span class="keyword">ELSIF</span> v_precio > <span class="string">300000</span> <span class="keyword">THEN</span>
+    v_categoria := <span class="string">'ESTÁNDAR'</span>;
+<span class="keyword">ELSIF</span> v_precio > <span class="string">50000</span> <span class="keyword">THEN</span>
+    v_categoria := <span class="string">'ECONÓMICO'</span>;
+<span class="keyword">ELSE</span>
+    v_categoria := <span class="string">'BÁSICO'</span>;
+<span class="keyword">END IF</span>;</pre>
+  <div class="card yellow" style="margin-top:16px;max-width:600px">
+    <h3>⚠️ Ojo con la sintaxis</h3>
+    <ul>
+      <li>Es <code>ELSIF</code>, no <code>ELSE IF</code> ni <code>ELSEIF</code></li>
+      <li>Siempre cierra con <code>END IF;</code> (con punto y coma)</li>
+    </ul>
+  </div>
+</div>
+
+<div class="slide" id="s4">
+  <div class="tag">Condicionales</div>
+  <h2><span class="highlight">CASE</span> expression</h2>
+  <pre>v_estado := <span class="keyword">CASE</span>
+    <span class="keyword">WHEN</span> v_stock = <span class="string">0</span>  <span class="keyword">THEN</span> <span class="string">'SIN STOCK'</span>
+    <span class="keyword">WHEN</span> v_stock < <span class="string">10</span> <span class="keyword">THEN</span> <span class="string">'STOCK BAJO'</span>
+    <span class="keyword">WHEN</span> v_stock < <span class="string">30</span> <span class="keyword">THEN</span> <span class="string">'STOCK NORMAL'</span>
+    <span class="keyword">ELSE</span> <span class="string">'STOCK ALTO'</span>
+<span class="keyword">END</span>;</pre>
+  <p style="color:var(--muted);margin-top:16px">Ideal cuando se asigna un valor basado en múltiples condiciones. Más limpio que múltiples IF para este patrón.</p>
+</div>
+
+<div class="slide" id="s5">
+  <div class="tag">Ciclos</div>
+  <h2>Tipos de <span class="highlight">ciclos</span> en PL/pgSQL</h2>
+  <div class="grid-3">
+    <div class="card green">
+      <h3>LOOP</h3>
+      <ul>
+        <li>Ciclo infinito</li>
+        <li>Sale con EXIT WHEN</li>
+        <li>Control manual</li>
+      </ul>
+    </div>
+    <div class="card purple">
+      <h3>FOR</h3>
+      <ul>
+        <li>Numérico: FOR i IN 1..10</li>
+        <li>Sobre query: FOR rec IN SELECT...</li>
+        <li>El más usado</li>
+      </ul>
+    </div>
+    <div class="card yellow">
+      <h3>WHILE</h3>
+      <ul>
+        <li>Mientras condición sea TRUE</li>
+        <li>Evalúa antes de cada vuelta</li>
+        <li>Ideal para convergencia</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="slide" id="s6">
+  <div class="tag">Ciclos</div>
+  <h2><span class="highlight">FOR</span> sobre query — el más útil</h2>
+  <pre><span class="keyword">DECLARE</span>
+    v_registro <span class="type">RECORD</span>;
+    v_total    <span class="type">DECIMAL</span> := <span class="string">0</span>;
+<span class="keyword">BEGIN</span>
+    <span class="keyword">FOR</span> v_registro <span class="keyword">IN</span>
+        <span class="keyword">SELECT</span> nombre, precio, stock, (precio * stock) <span class="keyword">AS</span> valor
+        <span class="keyword">FROM</span> productos
+        <span class="keyword">WHERE</span> activo = <span class="string">TRUE</span>
+        <span class="keyword">ORDER BY</span> valor <span class="keyword">DESC</span>
+    <span class="keyword">LOOP</span>
+        <span class="function">RAISE NOTICE</span> <span class="string">'%: $%'</span>,
+            v_registro.nombre, v_registro.valor;
+        v_total := v_total + v_registro.valor;
+    <span class="keyword">END LOOP</span>;
+
+    <span class="function">RAISE NOTICE</span> <span class="string">'TOTAL: $%'</span>, v_total;</pre>
+  <p style="color:var(--warning);font-size:.9rem;margin-top:8px">💡 <code>RECORD</code> se adapta automáticamente a cualquier estructura de query</p>
+</div>
+
+<div class="slide" id="s7">
+  <div class="tag">Errores</div>
+  <h2>Manejo de <span class="highlight">errores</span></h2>
+  <pre><span class="keyword">BEGIN</span>
+    <span class="comment">-- Código que puede fallar</span>
+    <span class="keyword">SELECT</span> stock <span class="keyword">INTO STRICT</span> v_stock
+    <span class="keyword">FROM</span> productos <span class="keyword">WHERE</span> id = p_id;
+
+    <span class="comment">-- Lanzar error personalizado</span>
+    <span class="keyword">IF</span> v_stock < p_cantidad <span class="keyword">THEN</span>
+        <span class="function">RAISE EXCEPTION</span> <span class="string">'Stock insuficiente'</span>
+            <span class="keyword">USING</span> ERRCODE = <span class="string">'P0001'</span>,
+                  HINT = <span class="string">'Disponible: '</span> || v_stock;
+    <span class="keyword">END IF</span>;
+
+<span class="keyword">EXCEPTION</span>
+    <span class="keyword">WHEN</span> NO_DATA_FOUND <span class="keyword">THEN</span>
+        <span class="function">RAISE NOTICE</span> <span class="string">'No existe'</span>;
+    <span class="keyword">WHEN</span> SQLSTATE <span class="string">'P0001'</span> <span class="keyword">THEN</span>
+        <span class="function">RAISE NOTICE</span> <span class="string">'%'</span>, SQLERRM;
+    <span class="keyword">WHEN OTHERS THEN</span>
+        <span class="function">RAISE NOTICE</span> <span class="string">'Error: %'</span>, SQLERRM;
+<span class="keyword">END</span>;</pre>
+</div>
+
+<div class="slide" id="s8">
+  <div class="tag">Referencia</div>
+  <h2>Excepciones <span class="highlight">comunes</span></h2>
+  <table>
+    <thead><tr><th>Excepción</th><th>Cuándo ocurre</th></tr></thead>
+    <tbody>
+      <tr><td><code style="color:var(--accent)">NO_DATA_FOUND</code></td><td>SELECT INTO STRICT sin filas</td></tr>
+      <tr><td><code style="color:var(--accent)">TOO_MANY_ROWS</code></td><td>SELECT INTO STRICT con &gt;1 fila</td></tr>
+      <tr><td><code style="color:var(--accent)">UNIQUE_VIOLATION</code></td><td>Violación de UNIQUE o PK</td></tr>
+      <tr><td><code style="color:var(--accent)">FOREIGN_KEY_VIOLATION</code></td><td>FK referencia inválida</td></tr>
+      <tr><td><code style="color:var(--accent)">NOT_NULL_VIOLATION</code></td><td>Columna NOT NULL recibe NULL</td></tr>
+      <tr><td><code style="color:var(--accent)">CHECK_VIOLATION</code></td><td>Falla un CHECK constraint</td></tr>
+      <tr><td><code style="color:var(--accent)">DIVISION_BY_ZERO</code></td><td>División entre cero</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="slide" id="s9">
+  <div class="tag">Transacciones</div>
+  <h2>ACID: <span class="highlight">Todo o nada</span></h2>
+  <div class="grid-2">
+    <div>
+      <div class="card green" style="margin-bottom:16px">
+        <h3>Atomicity</h3>
+        <ul><li>Todas las operaciones se aplican, o ninguna</li></ul>
+      </div>
+      <div class="card purple">
+        <h3>Consistency</h3>
+        <ul><li>De un estado válido a otro estado válido</li></ul>
+      </div>
+    </div>
+    <div>
+      <div class="card yellow" style="margin-bottom:16px">
+        <h3>Isolation</h3>
+        <ul><li>Las transacciones no se interfieren entre sí</li></ul>
+      </div>
+      <div class="card red">
+        <h3>Durability</h3>
+        <ul><li>Una vez confirmado (COMMIT), persiste aunque falle el servidor</li></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="slide" id="s10">
+  <div class="tag">Transacciones</div>
+  <h2><span class="highlight">COMMIT</span> y <span class="highlight">ROLLBACK</span></h2>
+  <pre><span class="keyword">CREATE OR REPLACE PROCEDURE</span> <span class="function">transferencia</span>(
+    p_origen <span class="type">INT</span>, p_destino <span class="type">INT</span>, p_monto <span class="type">DECIMAL</span>
+)
+<span class="keyword">LANGUAGE</span> plpgsql <span class="keyword">AS</span> <span class="string">$$</span>
+<span class="keyword">BEGIN</span>
+    <span class="comment">-- Debitar</span>
+    <span class="keyword">UPDATE</span> cuentas <span class="keyword">SET</span> saldo = saldo - p_monto
+    <span class="keyword">WHERE</span> id = p_origen;
+    <span class="comment">-- Acreditar</span>
+    <span class="keyword">UPDATE</span> cuentas <span class="keyword">SET</span> saldo = saldo + p_monto
+    <span class="keyword">WHERE</span> id = p_destino;
+
+    <span class="keyword">COMMIT</span>;
+    <span class="function">RAISE NOTICE</span> <span class="string">'✅ Transferencia completada'</span>;
+
+<span class="keyword">EXCEPTION WHEN OTHERS THEN</span>
+    <span class="keyword">ROLLBACK</span>;
+    <span class="function">RAISE NOTICE</span> <span class="string">'❌ Error: %'</span>, SQLERRM;
+<span class="keyword">END</span>; <span class="string">$$</span>;</pre>
+  <div class="card red" style="margin-top:12px;max-width:600px">
+    <h3>🔑 Diferencia clave</h3>
+    <ul>
+      <li>COMMIT / ROLLBACK solo funciona en PROCEDURE</li>
+      <li>Las FUNCTION NO pueden controlar transacciones</li>
+    </ul>
+  </div>
+</div>
+
+<div class="slide" id="s11">
+  <div class="tag">Laboratorio</div>
+  <h2>Sistema de <span class="highlight">pedidos múltiples</span></h2>
+  <div class="quote">Crear un procedimiento que procese un pedido con múltiples productos usando arrays, validando TODO antes de procesar.</div>
+  <div class="flow" style="margin-top:20px">
+    <div class="flow-step">1. Recibir arrays</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">2. Validar TODO</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">3. Procesar si ok</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">4. Rollback si falla</div>
+  </div>
+  <pre style="margin-top:16px"><span class="keyword">CALL</span> <span class="function">procesar_pedido</span>(
+    <span class="keyword">ARRAY</span>[<span class="string">1</span>, <span class="string">2</span>, <span class="string">3</span>],     <span class="comment">-- producto_ids</span>
+    <span class="keyword">ARRAY</span>[<span class="string">1</span>, <span class="string">2</span>, <span class="string">1</span>]      <span class="comment">-- cantidades</span>
+);</pre>
+</div>
+
+<div class="slide" id="s12">
+  <div class="tag">Cierre</div>
+  <h2>Recapitulación del <span class="highlight">Día 2</span></h2>
+  <div class="grid-2">
+    <div>
+      <div class="card green" style="margin-bottom:16px">
+        <h3>Variables</h3>
+        <ul><li>%TYPE y %ROWTYPE</li><li>CONSTANT para valores fijos</li><li>:= para asignación</li></ul>
+      </div>
+      <div class="card purple">
+        <h3>Control de flujo</h3>
+        <ul><li>IF / ELSIF / ELSE</li><li>CASE expression</li></ul>
+      </div>
+    </div>
+    <div>
+      <div class="card yellow" style="margin-bottom:16px">
+        <h3>Ciclos</h3>
+        <ul><li>LOOP + EXIT WHEN</li><li>FOR numérico y sobre query</li><li>WHILE</li></ul>
+      </div>
+      <div class="card red">
+        <h3>Errores + Transacciones</h3>
+        <ul><li>BEGIN...EXCEPTION</li><li>COMMIT / ROLLBACK</li><li>Solo en PROCEDURE</li></ul>
+      </div>
+    </div>
+  </div>
+  <p style="margin-top:24px;color:var(--accent)">🔮 Mañana → Funciones escalares y de tabla</p>
+</div>
+
+<div class="progress" id="progress"></div>
+<div class="slide-number" id="slideNum"></div>
+<div class="controls-hint"><kbd>←</kbd> <kbd>→</kbd> o clic para navegar</div>
+
+<script>
+  const slides=document.querySelectorAll('.slide');let current=0;
+  function showSlide(n){slides[current].classList.remove('active');current=(n+slides.length)%slides.length;slides[current].classList.add('active');document.getElementById('slideNum').textContent=`${current+1} / ${slides.length}`;document.getElementById('progress').style.width=`${((current+1)/slides.length)*100}%`}
+  document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' ')showSlide(current+1);if(e.key==='ArrowLeft')showSlide(current-1)});
+  document.addEventListener('click',e=>{if(e.clientX>window.innerWidth/2)showSlide(current+1);else showSlide(current-1)});
+  showSlide(0);
+</script>
+</body>
+</html>
